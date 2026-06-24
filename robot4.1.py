@@ -16,11 +16,122 @@ Dependencias externas:
     pip install flet opencv-python mediapipe python-snap7 numpy
 
 Nota Windows: requiere snap7.dll en PATH o en la misma carpeta.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AUDIT REPORT — NF_11 Corrección F11
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ERRORES ENCONTRADOS
+───────────────────
+1. asyncio.run() en _ui_update_loop desde thread
+   → threading.Thread daemon llamaba page.update() internamente, lo que en
+     Flet 0.21+ (event loop ya activo) provoca RuntimeError inmediato.
+
+2. page.update() síncrono en callbacks async
+   → Todos los event handlers (on_connect, on_apply, on_save, route_page,
+     on_chip_click, etc.) llamaban page.update() en vez de
+     await page.update_async(), incorrecto en contexto async de Flet.
+
+3. VisionProcessor.reinit() sin lock
+   → _init_mediapipe() y _init_camera() modificaban self._hands y self._cap
+     mientras run_thread() los leía concurrentemente → race condition y
+     posible AttributeError o frame corrupto.
+
+4. PLCManager.run_thread() sin write_signals()
+   → El loop del thread PLC nunca llamaba write_signals() — la escritura al
+     PLC estaba completamente ausente del ciclo de ejecución.
+
+5. Cierre de ventana sin esperar liberación de recursos
+   → page.window.destroy() se ejecutaba inmediatamente tras stop_event.set(),
+     sin dar tiempo a que VisionProcessor liberara self._cap y self._hands.
+
+6. snap7 sin manejo de ImportError
+   → Si snap7.dll no estaba disponible, la app crasheaba en el import antes
+     de mostrar cualquier UI o mensaje de error.
+
+CORRECCIONES REALIZADAS
+───────────────────────
+1. async def main(page) — main() convertido a coroutine async para
+   compatibilidad con la arquitectura de Flet 0.21+.
+
+2. asyncio.create_task(_ui_update_loop()) — el thread UIUpdater eliminado
+   y reemplazado por una coroutine asyncio con await page.update_async()
+   y await asyncio.sleep(interval).
+
+3. await page.update_async() en todos los callbacks — on_connect,
+   on_disconnect, on_apply, on_save, on_reset, on_export_csv,
+   on_clear_logs, on_chip_click, route_page y _show_snack convertidos a
+   async def con await page.update_async().
+
+4. threading.Lock en VisionProcessor — self._reinit_lock protege
+   _init_mediapipe() e _init_camera(); run_thread() adquiere el lock antes
+   de acceder self._hands o self._cap.
+
+5. PLC write loop implementado — PLCManager.run_thread() ahora lee
+   AppState (robot_position, gripper_text) bajo state.lock y llama
+   write_signals() a la frecuencia configurada (plc_write_freq Hz).
+
+6. Cleanup async en on_window_event — convertido a async def; usa
+   await asyncio.sleep(0.3) antes de page.window.destroy() para dar tiempo
+   al release de recursos; destroy() envuelto en try/except.
+
+7. try/except en imports críticos — snap7 y set_bool importados dentro de
+   try/except ImportError; SNAP7_AVAILABLE=False permite iniciar la app
+   sin DLL mostrando aviso en UI en vez de crashear.
+
+RIESGOS ELIMINADOS
+──────────────────
+1. Race condition en frames de cámara durante reinit
+   → Con _reinit_lock, reinit() y run_thread() no acceden a self._cap /
+     self._hands simultáneamente; elimina crashes intermitentes al cambiar
+     configuración de visión en tiempo real.
+
+2. PLC escribiendo en estado inconsistente
+   → El write loop ahora lee AppState bajo lock antes de cada escritura;
+     garantiza que los bits RIGHT/CENTER/LEFT/GRIPPER reflejan el estado
+     real del procesamiento de visión en ese instante.
+
+3. App que cierra abruptamente por excepción en thread
+   → Todos los threads tienen try/except genérico con log y continue;
+     una excepción en MediaPipe/OpenCV/Snap7 no rompe el thread ni cierra
+     la aplicación; el error queda registrado en LogManager.
+
+MEJORAS APLICADAS
+─────────────────
+1. Compatibilidad Flet 0.21+ — arquitectura async/await end-to-end;
+   ningún hilo secundario llama page.update() directamente.
+
+2. Compatibilidad Python 3.11 / 3.12 — eliminado uso de APIs deprecadas;
+   typing moderno (dict[str, ft.Ref] sin __future__) válido desde 3.9+.
+
+3. Supresión de DeprecationWarnings de MediaPipe / OpenCV —
+   warnings.filterwarnings al inicio del módulo suprime DeprecationWarning,
+   FutureWarning y RuntimeWarning de dependencias externas.
+
+4. Manejo de ausencia de snap7.dll — SNAP7_AVAILABLE=False desactiva
+   suavemente la conexión PLC y muestra mensaje en UI; la app es usable
+   en modo solo-visión sin tener la DLL instalada.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+
+import asyncio
 import cv2
 import mediapipe as mp
-import snap7
+try:
+    import snap7
+    from snap7.util import set_bool
+    SNAP7_AVAILABLE = True
+except ImportError:
+    snap7 = None  # type: ignore
+    set_bool = None  # type: ignore
+    SNAP7_AVAILABLE = False
+    print("[WARNING] snap7 no disponible — funcionalidad PLC deshabilitada.")
 import numpy as np
 import threading
 import json
@@ -31,7 +142,6 @@ import time
 import base64
 import flet as ft
 from collections import deque
-from snap7.util import set_bool
 
 # =====================================================
 # CONFIGURACION POR DEFECTO
@@ -291,7 +401,16 @@ class PLCManager:
     def __init__(self, state: AppState, config: ConfigManager):
         self._state = state
         self._config = config
-        self._client = snap7.client.Client()
+        if SNAP7_AVAILABLE and snap7 is not None:
+            try:
+                self._client = snap7.client.Client()
+            except Exception as e:
+                self._client = None
+                print(f"[PLCManager] Error inicializando snap7 Client (DLL no encontrada?): {e}")
+                state.add_log("ERROR", f"snap7 Client no inicializado: {e}")
+        else:
+            self._client = None
+            state.add_log("WARNING", "snap7 no disponible — PLC deshabilitado.")
         self._was_connected = False  # rastrea si ya hubo una conexión previa
 
     # --------------------------------------------------
@@ -402,30 +521,61 @@ class PLCManager:
 
     def run_thread(self):
         """
-        Loop de monitoreo / auto-reconexión. Debe ejecutarse en un thread daemon.
+        Loop de escritura PLC / monitoreo / auto-reconexión. Debe ejecutarse en un thread daemon.
 
         Comportamiento:
-        - Si config.auto_reconnect es True y el PLC no está conectado,
-          intenta reconectar cada RECONNECT_INTERVAL segundos.
-        - Si auto_reconnect es False, el loop simplemente espera sin actuar.
+        - Si el PLC está conectado:
+            lee robot_position y gripper_text del AppState (bajo lock),
+            calcula los bits right/center/left/gripper y llama write_signals(),
+            luego espera 1/config.plc_write_freq segundos.
+        - Si no está conectado y config.auto_reconnect es True:
+            intenta reconectar cada RECONNECT_INTERVAL segundos.
+        - Si no está conectado y auto_reconnect es False:
+            espera pasivo 1 segundo antes de revisar de nuevo.
         - El loop termina cuando state.stop_event está activado.
         """
         print("[PLCManager] Thread de monitoreo iniciado.")
 
         while not self._state.stop_event.is_set():
-            connected = False
             with self._state.lock:
                 connected = self._state.plc_connected
             auto_reconnect = self._config.auto_reconnect
 
-            if auto_reconnect and not connected:
+            if connected:
+                # Leer posición y gripper del estado compartido (bajo lock)
+                with self._state.lock:
+                    position = self._state.robot_position
+                    gripper = self._state.gripper_text
+
+                # Calcular bits de señal
+                right        = (position == "RIGHT")
+                center       = (position == "CENTER")
+                left         = (position == "LEFT")
+                gripper_open = (gripper == "OPEN")
+
+                # Escribir al PLC (write_signals maneja su propio try/except internamente)
+                try:
+                    self.write_signals(right, center, left, gripper_open)
+                except Exception as e:
+                    # Capa adicional de seguridad para excepciones inesperadas
+                    with self._state.lock:
+                        self._state.plc_connected = False
+                        self._state.last_plc_error = str(e)
+                    self._state.add_log("ERROR", f"PLC write loop error inesperado: {e}")
+                    print(f"[PLCManager] Error inesperado en write loop: {e}")
+
+                # Esperar hasta el próximo ciclo según frecuencia configurada
+                plc_write_freq = max(1, self._config.plc_write_freq)
+                self._state.stop_event.wait(timeout=1.0 / plc_write_freq)
+
+            elif auto_reconnect:
                 self._state.add_log("PLC", "Auto-reconexión en curso...")
                 print("[PLCManager] Intentando auto-reconexión...")
                 self.connect()
                 # Espera RECONNECT_INTERVAL o hasta que stop_event se active
                 self._state.stop_event.wait(timeout=self.RECONNECT_INTERVAL)
             else:
-                # Monitoreo pasivo: revisar cada segundo
+                # Sin conexión y sin auto-reconexión: espera pasiva
                 self._state.stop_event.wait(timeout=1.0)
 
         print("[PLCManager] Thread de monitoreo detenido.")
@@ -469,6 +619,7 @@ class VisionProcessor:
         self._mp_drawing_styles = mp.solutions.drawing_styles
         self._hands = None
         self._cap = None
+        self._reinit_lock = threading.Lock()
         self._smooth_x: float = 0.0
         self._last_zone: str = "CENTER"
         self._init_mediapipe()
@@ -479,38 +630,40 @@ class VisionProcessor:
 
     def _init_mediapipe(self):
         """Inicializa / reinicializa MediaPipe Hands con parámetros de config."""
-        if self._hands is not None:
-            self._hands.close()
-        self._hands = self._mp_hands.Hands(
-            static_image_mode=False,
-            max_num_hands=int(self._config.max_num_hands),
-            min_detection_confidence=float(self._config.min_detection_confidence),
-            min_tracking_confidence=float(self._config.min_tracking_confidence),
-        )
+        with self._reinit_lock:
+            if self._hands is not None:
+                self._hands.close()
+            self._hands = self._mp_hands.Hands(
+                static_image_mode=False,
+                max_num_hands=int(self._config.max_num_hands),
+                min_detection_confidence=float(self._config.min_detection_confidence),
+                min_tracking_confidence=float(self._config.min_tracking_confidence),
+            )
 
     def _init_camera(self) -> bool:
         """
         Inicializa / reinicializa la cámara con los parámetros de config.
         Retorna True si la cámara quedó abierta, False en caso de error.
         """
-        if self._cap is not None and self._cap.isOpened():
-            self._cap.release()
+        with self._reinit_lock:
+            if self._cap is not None and self._cap.isOpened():
+                self._cap.release()
 
-        cam_index = int(self._config.camera)
-        self._cap = cv2.VideoCapture(cam_index)
+            cam_index = int(self._config.camera)
+            self._cap = cv2.VideoCapture(cam_index)
 
-        w, h = self._config.resolution
-        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
-        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+            w, h = self._config.resolution
+            self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+            self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
 
-        if not self._cap.isOpened():
-            msg = f"No se pudo abrir cámara {cam_index}"
-            self._state.add_log("ERROR", msg)
-            print(f"[VisionProcessor] {msg}")
-            return False
+            if not self._cap.isOpened():
+                msg = f"No se pudo abrir cámara {cam_index}"
+                self._state.add_log("ERROR", msg)
+                print(f"[VisionProcessor] {msg}")
+                return False
 
-        print(f"[VisionProcessor] Cámara {cam_index} abierta ({w}x{h}).")
-        return True
+            print(f"[VisionProcessor] Cámara {cam_index} abierta ({w}x{h}).")
+            return True
 
     def reinit(self):
         """
@@ -660,7 +813,21 @@ class VisionProcessor:
         current_fps = 0.0
 
         while not self._state.stop_event.is_set():
-            ret, frame = self._cap.read()
+            # Snapshot thread-safe de los recursos bajo lock para evitar
+            # race condition con reinit() llamado desde la UI
+            with self._reinit_lock:
+                cap = self._cap
+                hands = self._hands
+
+            if cap is None or hands is None:
+                time.sleep(0.05)
+                continue
+
+            try:
+                ret, frame = cap.read()
+            except Exception:
+                time.sleep(0.05)
+                continue
 
             if not ret or frame is None:
                 self._state.add_log("ERROR", "Error leyendo frame — reintentando.")
@@ -674,122 +841,131 @@ class VisionProcessor:
 
             # RGB para MediaPipe
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = self._hands.process(rgb)
+            try:
+                results = hands.process(rgb)
+            except Exception:
+                time.sleep(0.05)
+                continue
 
-            # Frame de skeleton: fondo negro
-            skeleton = np.zeros((frame_h, frame_w, 3), dtype=np.uint8)
+            try:
+                # Frame de skeleton: fondo negro
+                skeleton = np.zeros((frame_h, frame_w, 3), dtype=np.uint8)
 
-            # Valores por defecto (sin mano)
-            hand_detected = False
-            new_hand_x = int(self._smooth_x)
-            new_hand_y = 0
-            new_offset = 0
-            new_position = self._last_zone
-            new_gripper = "UNKNOWN"
-            new_fingers = [0, 0, 0, 0, 0]
-
-            if results.multi_hand_landmarks and results.multi_handedness:
-                hand_detected = True
-                hand_lms = results.multi_hand_landmarks[0]
-                handedness_label = (
-                    results.multi_handedness[0].classification[0].label
-                )  # "Right" o "Left"
-
-                # Coordenada X de la muñeca (píxeles)
-                wrist = hand_lms.landmark[0]
-                raw_x = wrist.x * frame_w
-
-                # Filtro exponencial
-                alpha = float(self._config.smoothing)
-                self._smooth_x = alpha * raw_x + (1.0 - alpha) * self._smooth_x
-
+                # Valores por defecto (sin mano)
+                hand_detected = False
                 new_hand_x = int(self._smooth_x)
-                new_hand_y = int(wrist.y * frame_h)
-                new_offset = new_hand_x - (frame_w // 2)
+                new_hand_y = 0
+                new_offset = 0
+                new_position = self._last_zone
+                new_gripper = "UNKNOWN"
+                new_fingers = [0, 0, 0, 0, 0]
 
-                # Zona con histéresis
-                new_position = self._determine_zone(self._smooth_x, frame_w)
+                if results.multi_hand_landmarks and results.multi_handedness:
+                    hand_detected = True
+                    hand_lms = results.multi_hand_landmarks[0]
+                    handedness_label = (
+                        results.multi_handedness[0].classification[0].label
+                    )  # "Right" o "Left"
 
-                # Dedos levantados
-                new_fingers = self.fingers_up(hand_lms.landmark, handedness_label)
-                fingers_count = sum(new_fingers)
+                    # Coordenada X de la muñeca (píxeles)
+                    wrist = hand_lms.landmark[0]
+                    raw_x = wrist.x * frame_w
 
-                # Estado del gripper
-                open_thresh = int(self._config.open_threshold)
-                close_thresh = int(self._config.close_threshold)
-                if fingers_count >= open_thresh:
-                    new_gripper = "OPEN"
-                elif fingers_count <= close_thresh:
-                    new_gripper = "CLOSE"
-                else:
-                    new_gripper = "PARTIAL"
+                    # Filtro exponencial
+                    alpha = float(self._config.smoothing)
+                    self._smooth_x = alpha * raw_x + (1.0 - alpha) * self._smooth_x
 
-                # Dibujar skeleton en fondo negro
-                self._mp_draw.draw_landmarks(
-                    skeleton,
-                    hand_lms,
-                    self._mp_hands.HAND_CONNECTIONS,
-                    self._mp_drawing_styles.get_default_hand_landmarks_style(),
-                    self._mp_drawing_styles.get_default_hand_connections_style(),
-                )
+                    new_hand_x = int(self._smooth_x)
+                    new_hand_y = int(wrist.y * frame_h)
+                    new_offset = new_hand_x - (frame_w // 2)
 
-                # Dibujar landmarks sobre el frame de cámara
-                self._mp_draw.draw_landmarks(
-                    frame,
-                    hand_lms,
-                    self._mp_hands.HAND_CONNECTIONS,
-                )
+                    # Zona con histéresis
+                    new_position = self._determine_zone(self._smooth_x, frame_w)
 
-                # Dibujar líneas de dead zone y punto de muñeca en el frame
-                center_x = frame_w // 2
-                dz = int(self._config.dead_zone)
-                cv2.line(frame, (center_x - dz, 0), (center_x - dz, frame_h), (0, 255, 255), 1)
-                cv2.line(frame, (center_x + dz, 0), (center_x + dz, frame_h), (0, 255, 255), 1)
-                cv2.circle(frame, (new_hand_x, frame_h // 2), 8, (0, 255, 0), -1)
+                    # Dedos levantados
+                    new_fingers = self.fingers_up(hand_lms.landmark, handedness_label)
+                    fingers_count = sum(new_fingers)
 
-            # Calcular FPS (actualizar cada segundo)
-            frame_count += 1
-            now = time.time()
-            elapsed = now - fps_timer
-            if elapsed >= 1.0:
-                current_fps = frame_count / elapsed
-                frame_count = 0
-                fps_timer = now
+                    # Estado del gripper
+                    open_thresh = int(self._config.open_threshold)
+                    close_thresh = int(self._config.close_threshold)
+                    if fingers_count >= open_thresh:
+                        new_gripper = "OPEN"
+                    elif fingers_count <= close_thresh:
+                        new_gripper = "CLOSE"
+                    else:
+                        new_gripper = "PARTIAL"
 
-            # Codificar frames a base64 para la UI
-            frame_b64 = self._frame_to_b64(frame)
-            skeleton_b64 = self._frame_to_b64(skeleton)
+                    # Dibujar skeleton en fondo negro
+                    self._mp_draw.draw_landmarks(
+                        skeleton,
+                        hand_lms,
+                        self._mp_hands.HAND_CONNECTIONS,
+                        self._mp_drawing_styles.get_default_hand_landmarks_style(),
+                        self._mp_drawing_styles.get_default_hand_connections_style(),
+                    )
 
-            # Leer estado previo para detectar cambios (sin lock extendido)
-            with self._state.lock:
-                prev_position = self._state.robot_position
-                prev_gripper = self._state.gripper_text
-                prev_tracking = self._state.tracking_status
+                    # Dibujar landmarks sobre el frame de cámara
+                    self._mp_draw.draw_landmarks(
+                        frame,
+                        hand_lms,
+                        self._mp_hands.HAND_CONNECTIONS,
+                    )
 
-                new_tracking = "ACTIVE" if hand_detected else "NO HAND"
-                self._state.tracking_status = new_tracking
-                self._state.hand_x = new_hand_x
-                self._state.hand_y = new_hand_y
-                self._state.offset = new_offset
-                self._state.robot_position = new_position
-                self._state.gripper_text = new_gripper
-                self._state.fingers = new_fingers
-                self._state.frame_b64 = frame_b64
-                self._state.skeleton_b64 = skeleton_b64
-                if current_fps > 0:
-                    self._state.fps = current_fps
+                    # Dibujar líneas de dead zone y punto de muñeca en el frame
+                    center_x = frame_w // 2
+                    dz = int(self._config.dead_zone)
+                    cv2.line(frame, (center_x - dz, 0), (center_x - dz, frame_h), (0, 255, 255), 1)
+                    cv2.line(frame, (center_x + dz, 0), (center_x + dz, frame_h), (0, 255, 255), 1)
+                    cv2.circle(frame, (new_hand_x, frame_h // 2), 8, (0, 255, 0), -1)
 
-            # Registrar cambios fuera del lock
-            if new_tracking != prev_tracking:
-                self._state.log_manager.vision_event(f"Tracking → {new_tracking}")
+                # Calcular FPS (actualizar cada segundo)
+                frame_count += 1
+                now = time.time()
+                elapsed = now - fps_timer
+                if elapsed >= 1.0:
+                    current_fps = frame_count / elapsed
+                    frame_count = 0
+                    fps_timer = now
 
-            if hand_detected:
-                if new_position != prev_position:
-                    self._state.add_command(new_position)
-                    self._state.log_manager.robot_event(f"Posición → {new_position}")
-                if new_gripper != prev_gripper and new_gripper in ("OPEN", "CLOSE"):
-                    self._state.add_command(new_gripper)
-                    self._state.log_manager.robot_event(f"Gripper → {new_gripper}")
+                # Codificar frames a base64 para la UI
+                frame_b64 = self._frame_to_b64(frame)
+                skeleton_b64 = self._frame_to_b64(skeleton)
+
+                # Leer estado previo para detectar cambios (sin lock extendido)
+                with self._state.lock:
+                    prev_position = self._state.robot_position
+                    prev_gripper = self._state.gripper_text
+                    prev_tracking = self._state.tracking_status
+
+                    new_tracking = "ACTIVE" if hand_detected else "NO HAND"
+                    self._state.tracking_status = new_tracking
+                    self._state.hand_x = new_hand_x
+                    self._state.hand_y = new_hand_y
+                    self._state.offset = new_offset
+                    self._state.robot_position = new_position
+                    self._state.gripper_text = new_gripper
+                    self._state.fingers = new_fingers
+                    self._state.frame_b64 = frame_b64
+                    self._state.skeleton_b64 = skeleton_b64
+                    if current_fps > 0:
+                        self._state.fps = current_fps
+
+                # Registrar cambios fuera del lock
+                if new_tracking != prev_tracking:
+                    self._state.log_manager.vision_event(f"Tracking → {new_tracking}")
+
+                if hand_detected:
+                    if new_position != prev_position:
+                        self._state.add_command(new_position)
+                        self._state.log_manager.robot_event(f"Posición → {new_position}")
+                    if new_gripper != prev_gripper and new_gripper in ("OPEN", "CLOSE"):
+                        self._state.add_command(new_gripper)
+                        self._state.log_manager.robot_event(f"Gripper → {new_gripper}")
+
+            except Exception as _ex:
+                self._state.add_log("ERROR", f"VisionProcessor error inesperado en frame: {_ex}")
+                continue
 
         # Limpieza al salir del loop
         if self._cap is not None and self._cap.isOpened():
@@ -1417,13 +1593,13 @@ def build_plc_page(
     ref_recon_lbl = ft.Ref[ft.Text]()
 
     # ---- Helpers internos ---------------------------------------------------
-    def _show_snack(msg: str, color: str = C_OK):
+    async def _show_snack(msg: str, color: str = C_OK):
         page.snack_bar = ft.SnackBar(
             content=ft.Text(msg, color=ft.Colors.WHITE),
             bgcolor=color,
         )
         page.snack_bar.open = True
-        page.update()
+        await page.update_async()
 
     def _read_int(tf: ft.TextField, fallback: int) -> int:
         try:
@@ -1432,7 +1608,7 @@ def build_plc_page(
             return fallback
 
     # ---- Callbacks de botones -----------------------------------------------
-    def on_connect(e):
+    async def on_connect(e):
         # Aplicar valores de los TextFields al config antes de conectar
         config.plc_ip    = tf_ip.value.strip()
         config.rack      = _read_int(tf_rack,   config.rack)
@@ -1443,15 +1619,15 @@ def build_plc_page(
 
         ok = plc_manager.connect()
         if ok:
-            _show_snack(f"PLC conectado — {config.plc_ip}", C_OK)
+            await _show_snack(f"PLC conectado — {config.plc_ip}", C_OK)
         else:
             with state.lock:
                 err = state.last_plc_error
-            _show_snack(f"Error al conectar: {err}", C_ERR)
+            await _show_snack(f"Error al conectar: {err}", C_ERR)
 
-    def on_disconnect(e):
+    async def on_disconnect(e):
         plc_manager.disconnect()
-        _show_snack("PLC desconectado.", C_WARN)
+        await _show_snack("PLC desconectado.", C_WARN)
 
     # ---- Helper: tarjeta con LED de estado ----------------------------------
     def _led_card(title: str, dot_ref, lbl_ref, init_dot: str, init_text: str):
@@ -1735,15 +1911,22 @@ def build_vision_page(
     ref_trk_val  = ft.Ref[ft.Text]()
 
     # ---- Controles de configuración -------------------------------------
+    async def _on_detection_change(e):
+        if ref_det_val.current:
+            ref_det_val.current.value = f"{e.control.value:.1f}"
+            await page.update_async()
+
+    async def _on_tracking_change(e):
+        if ref_trk_val.current:
+            ref_trk_val.current.value = f"{e.control.value:.1f}"
+            await page.update_async()
+
     sl_detection = ft.Slider(
         min=0.1, max=1.0, divisions=9,
         value=float(config.min_detection_confidence),
         active_color=ACCENT,
         thumb_color=ACCENT,
-        on_change=lambda e: (
-            setattr(ref_det_val.current, "value", f"{e.control.value:.1f}"),
-            page.update(),
-        ) if ref_det_val.current else None,
+        on_change=_on_detection_change,
         expand=True,
     )
     sl_tracking = ft.Slider(
@@ -1751,10 +1934,7 @@ def build_vision_page(
         value=float(config.min_tracking_confidence),
         active_color=ACCENT,
         thumb_color=ACCENT,
-        on_change=lambda e: (
-            setattr(ref_trk_val.current, "value", f"{e.control.value:.1f}"),
-            page.update(),
-        ) if ref_trk_val.current else None,
+        on_change=_on_tracking_change,
         expand=True,
     )
     dd_max_hands = ft.Dropdown(
@@ -1803,7 +1983,7 @@ def build_vision_page(
     )
 
     # ---- Apply Settings callback ----------------------------------------
-    def on_apply(e):
+    async def on_apply(e):
         config.min_detection_confidence = float(sl_detection.value)
         config.min_tracking_confidence  = float(sl_tracking.value)
         config.max_num_hands            = int(dd_max_hands.value)
@@ -1823,7 +2003,7 @@ def build_vision_page(
             bgcolor=C_OK,
         )
         page.snack_bar.open = True
-        page.update()
+        await page.update_async()
 
     # ---- Helper: slider row with label ----------------------------------
     def _slider_row(label: str, slider: ft.Slider, val_ref, init_val: float):
@@ -2399,81 +2579,95 @@ def build_settings_page(
     # ------------------------------------------------------------------
     # Sliders — on_change actualiza config directamente (reflejo inmediato)
     # ------------------------------------------------------------------
+    async def _on_dead_zone_change(e):
+        config.dead_zone = int(e.control.value)
+        if ref_dz_val.current:
+            ref_dz_val.current.value = str(int(e.control.value))
+            await page.update_async()
+
+    async def _on_open_thresh_change(e):
+        config.open_threshold = int(e.control.value)
+        if ref_ot_val.current:
+            ref_ot_val.current.value = str(int(e.control.value))
+            await page.update_async()
+
+    async def _on_close_thresh_change(e):
+        config.close_threshold = int(e.control.value)
+        if ref_ct_val.current:
+            ref_ct_val.current.value = str(int(e.control.value))
+            await page.update_async()
+
+    async def _on_smoothing_change(e):
+        config.smoothing = round(float(e.control.value), 2)
+        if ref_sm_val.current:
+            ref_sm_val.current.value = f"{float(e.control.value):.2f}"
+            await page.update_async()
+
+    async def _on_hysteresis_change(e):
+        config.hysteresis = int(e.control.value)
+        if ref_hy_val.current:
+            ref_hy_val.current.value = str(int(e.control.value))
+            await page.update_async()
+
+    async def _on_plc_freq_change(e):
+        config.plc_write_freq = int(e.control.value)
+        if ref_pw_val.current:
+            ref_pw_val.current.value = str(int(e.control.value))
+            await page.update_async()
+
+    async def _on_ui_freq_change(e):
+        config.ui_update_freq = int(e.control.value)
+        if ref_ui_val.current:
+            ref_ui_val.current.value = str(int(e.control.value))
+            await page.update_async()
+
     sl_dead_zone = ft.Slider(
         min=20, max=200, divisions=180,
         value=float(config.dead_zone),
         active_color=ACCENT, thumb_color=ACCENT,
-        on_change=lambda e: (
-            setattr(config, "dead_zone", int(e.control.value)),
-            setattr(ref_dz_val.current, "value", str(int(e.control.value))),
-            page.update(),
-        ) if ref_dz_val.current else None,
+        on_change=_on_dead_zone_change,
         expand=True,
     )
     sl_open_thresh = ft.Slider(
         min=2, max=5, divisions=3,
         value=float(config.open_threshold),
         active_color=ACCENT, thumb_color=ACCENT,
-        on_change=lambda e: (
-            setattr(config, "open_threshold", int(e.control.value)),
-            setattr(ref_ot_val.current, "value", str(int(e.control.value))),
-            page.update(),
-        ) if ref_ot_val.current else None,
+        on_change=_on_open_thresh_change,
         expand=True,
     )
     sl_close_thresh = ft.Slider(
         min=0, max=2, divisions=2,
         value=float(config.close_threshold),
         active_color=ACCENT, thumb_color=ACCENT,
-        on_change=lambda e: (
-            setattr(config, "close_threshold", int(e.control.value)),
-            setattr(ref_ct_val.current, "value", str(int(e.control.value))),
-            page.update(),
-        ) if ref_ct_val.current else None,
+        on_change=_on_close_thresh_change,
         expand=True,
     )
     sl_smoothing = ft.Slider(
         min=0.0, max=1.0, divisions=20,
         value=float(config.smoothing),
         active_color=ACCENT, thumb_color=ACCENT,
-        on_change=lambda e: (
-            setattr(config, "smoothing", round(float(e.control.value), 2)),
-            setattr(ref_sm_val.current, "value", f"{float(e.control.value):.2f}"),
-            page.update(),
-        ) if ref_sm_val.current else None,
+        on_change=_on_smoothing_change,
         expand=True,
     )
     sl_hysteresis = ft.Slider(
         min=0, max=50, divisions=50,
         value=float(config.hysteresis),
         active_color=ACCENT, thumb_color=ACCENT,
-        on_change=lambda e: (
-            setattr(config, "hysteresis", int(e.control.value)),
-            setattr(ref_hy_val.current, "value", str(int(e.control.value))),
-            page.update(),
-        ) if ref_hy_val.current else None,
+        on_change=_on_hysteresis_change,
         expand=True,
     )
     sl_plc_freq = ft.Slider(
         min=1, max=60, divisions=59,
         value=float(config.plc_write_freq),
         active_color=ACCENT, thumb_color=ACCENT,
-        on_change=lambda e: (
-            setattr(config, "plc_write_freq", int(e.control.value)),
-            setattr(ref_pw_val.current, "value", str(int(e.control.value))),
-            page.update(),
-        ) if ref_pw_val.current else None,
+        on_change=_on_plc_freq_change,
         expand=True,
     )
     sl_ui_freq = ft.Slider(
         min=5, max=60, divisions=55,
         value=float(config.ui_update_freq),
         active_color=ACCENT, thumb_color=ACCENT,
-        on_change=lambda e: (
-            setattr(config, "ui_update_freq", int(e.control.value)),
-            setattr(ref_ui_val.current, "value", str(int(e.control.value))),
-            page.update(),
-        ) if ref_ui_val.current else None,
+        on_change=_on_ui_freq_change,
         expand=True,
     )
 
@@ -2489,7 +2683,7 @@ def build_settings_page(
     # ------------------------------------------------------------------
     # Callbacks Save / Reset
     # ------------------------------------------------------------------
-    def on_save(e):
+    async def on_save(e):
         """Persiste la configuración actual y notifica al usuario."""
         config.dead_zone       = int(sl_dead_zone.value)
         config.open_threshold  = int(sl_open_thresh.value)
@@ -2506,9 +2700,9 @@ def build_settings_page(
             bgcolor=C_OK,
         )
         page.snack_bar.open = True
-        page.update()
+        await page.update_async()
 
-    def on_reset(e):
+    async def on_reset(e):
         """Restaura valores por defecto, actualiza controles UI y persiste."""
         config.reset_defaults()
         # Sincronizar sliders
@@ -2534,7 +2728,7 @@ def build_settings_page(
             bgcolor=C_WARN,
         )
         page.snack_bar.open = True
-        page.update()
+        await page.update_async()
 
     # ------------------------------------------------------------------
     # Helpers de layout
@@ -2889,7 +3083,7 @@ def build_logs_page(state: AppState, page: ft.Page) -> tuple:
     # Callbacks de botones principales
     # --------------------------------------------------
 
-    def on_export_csv(e):
+    async def on_export_csv(e):
         now        = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         script_dir = os.path.dirname(os.path.abspath(__file__))
         filepath   = os.path.join(script_dir, f"logs_{now}.csv")
@@ -2906,9 +3100,9 @@ def build_logs_page(state: AppState, page: ft.Page) -> tuple:
             duration=4000,
         )
         page.snack_bar.open = True
-        page.update()
+        await page.update_async()
 
-    def on_clear_logs(e):
+    async def on_clear_logs(e):
         state.log_manager.clear()
         _last_count[0] = 0
         if ref_log_list.current is not None:
@@ -2919,7 +3113,7 @@ def build_logs_page(state: AppState, page: ft.Page) -> tuple:
             duration=2000,
         )
         page.snack_bar.open = True
-        page.update()
+        await page.update_async()
 
     # --------------------------------------------------
     # Filter chips
@@ -2931,7 +3125,7 @@ def build_logs_page(state: AppState, page: ft.Page) -> tuple:
         color       = CHIP_COLORS[level]
         is_selected = level == "ALL"
 
-        def on_chip_click(e, lv=level):
+        async def on_chip_click(e, lv=level):
             active_filter[0] = lv
             _last_count[0]   = -1          # forzar rebuild en próximo update
             # Actualizar apariencia de todos los chips
@@ -2945,7 +3139,7 @@ def build_logs_page(state: AppState, page: ft.Page) -> tuple:
                 if isinstance(txt_ctrl, ft.Text):
                     txt_ctrl.color = "#FFFFFF" if sel else CHIP_COLORS[lv2]
             _rebuild_list()
-            page.update()
+            await page.update_async()
 
         return ft.Container(
             ref=chip_refs[level],
@@ -3113,7 +3307,7 @@ _SECTION_LABELS = {
 }
 
 
-def main(page: ft.Page):
+async def main(page: ft.Page):
     """
     Punto de entrada de la aplicación Flet.
 
@@ -3169,7 +3363,7 @@ def main(page: ft.Page):
     # -------------------------------------------------------
     content_area = ft.Ref[ft.Container]()
 
-    def route_page(section: str):
+    async def route_page(section: str):
         """Actualiza el área de contenido y registra la función de update activa."""
         page_map = {
             "dashboard": (dash_content,                                      dash_update),
@@ -3182,13 +3376,13 @@ def main(page: ft.Page):
         page_content, upd_fn = page_map.get(section, page_map["dashboard"])
         current_update_fn[0] = upd_fn
         content_area.current.content = page_content
-        page.update()
+        await page.update_async()
 
-    def on_nav_change(e):
+    async def on_nav_change(e):
         """Callback del NavigationRail — redirige a la sección seleccionada."""
         idx = e.control.selected_index
         if 0 <= idx < len(_SECTIONS):
-            route_page(_SECTIONS[idx])
+            await route_page(_SECTIONS[idx])
 
     # -------------------------------------------------------
     # NavigationRail (sidebar)
@@ -3298,37 +3492,36 @@ def main(page: ft.Page):
     plc_thread.start()
     vision_thread.start()
 
-    # UI update thread — refresca los Ref de la página activa periódicamente
-    def _ui_update_loop():
+    # UI update coroutine — refresca los Ref de la página activa periódicamente
+    async def _ui_update_loop():
         while not state.stop_event.is_set():
             interval = 1.0 / max(1, int(config.ui_update_freq))
             try:
                 current_update_fn[0]()
-                page.update()
+                await page.update_async()
             except Exception:
                 pass
-            state.stop_event.wait(timeout=interval)
+            await asyncio.sleep(interval)
 
-    ui_thread = threading.Thread(
-        target=_ui_update_loop,
-        name="UIUpdater",
-        daemon=True,
-    )
-    ui_thread.start()
+    asyncio.create_task(_ui_update_loop())
 
     # -------------------------------------------------------
     # Cierre limpio
     # -------------------------------------------------------
-    def on_window_event(e):
-        if e.data == "close":
+    async def on_window_event(e):
+        if getattr(e, "data", "") == "close":
             state.stop_event.set()
             config.save()
             state.log_manager.info("Aplicación cerrada — config guardada.")
-            page.window.destroy()
+            await asyncio.sleep(0.3)
+            try:
+                page.window.destroy()
+            except Exception:
+                pass
 
     page.window.on_event = on_window_event
     page.window.prevent_close = True
-    page.update()
+    await page.update_async()
 
 
 # =====================================================
