@@ -125,7 +125,7 @@ Task 5 — asyncio.create_task ref: sin cambios (ya correcto en v4.1).
 Task 6 — SnackBar patron: sin cambios (ya correcto en v4.1).
 Task 7 — page.window.on_event: sin cambios (ya correcto en v4.1).
 
-PLAN NF_12 TASKS 1-3 (Auditoria global Flet 0.85.3)
+PLAN NF_12 TASKS 1-4 (Auditoria global Flet 0.85.3)
 ────────────────────────────────────────────────────
 Task 1 — ft.Image + ft.ImageFit + ft.ClipBehavior:
   ft.ImageFit.CONTAIN → ft.BoxFit.CONTAIN (lineas 2215, 2260). Corregido.
@@ -147,6 +147,24 @@ Task 3 — ft.Card() + ft.Container():
     padding=, alignment=, clip_behavior=, expand=, ref= — todos validos
     en Flet 0.85.3. clip_behavior=ft.ClipBehavior.ANTI_ALIAS confirmado
     valido (lineas 2232, 2277). Sin cambios requeridos.
+
+Task 4 — ft.Row + ft.Column + CrossAxisAlignment + MainAxisAlignment:
+  ft.CrossAxisAlignment — enum valido en Flet 0.85.3. Valores presentes:
+    .CENTER (1228, 1313, 1464, 1514, 1745, 1794, 2206, 2249, 2261, 2294,
+    2306, 2329, 2538, 2554, 2955, 3143, 3292), .START (1914, 2345),
+    .END (1389), .STRETCH (3552). Todos validos. Sin cambios.
+  ft.MainAxisAlignment — enum valido en Flet 0.85.3. Valores presentes:
+    .CENTER (2248, 2293, 2448, 2473), .SPACE_BETWEEN (2954), .START (3291).
+    Todos validos. Sin cambios.
+  ft.Row parametros verificados: controles (arg posicional), spacing=,
+    alignment=, vertical_alignment=, expand=, wrap= — todos validos.
+    Ningun uso de children= como keyword. Sin cambios.
+  ft.Column parametros verificados: controles (arg posicional), spacing=,
+    alignment=, horizontal_alignment=, scroll=ft.ScrollMode.AUTO, expand=
+    — todos validos. Sin cambios.
+  ft.ListView.auto_scroll= (lineas 2528, 3255): valido en ft.ListView.
+  ft.Text.no_wrap= (lineas 1309, 1347, 1740, 1772): valido en ft.Text.
+  Sin correcciones requeridas en esta tarea.
 
 APIS REEMPLAZADAS (historico NF_11 + NF_12)
 ────────────────────────────────────────────
