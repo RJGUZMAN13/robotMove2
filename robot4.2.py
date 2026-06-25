@@ -125,7 +125,7 @@ Task 5 — asyncio.create_task ref: sin cambios (ya correcto en v4.1).
 Task 6 — SnackBar patron: sin cambios (ya correcto en v4.1).
 Task 7 — page.window.on_event: sin cambios (ya correcto en v4.1).
 
-PLAN NF_12 TASKS 1-4 (Auditoria global Flet 0.85.3)
+PLAN NF_12 TASKS 1-6 (Auditoria global Flet 0.85.3)
 ────────────────────────────────────────────────────
 Task 1 — ft.Image + ft.ImageFit + ft.ClipBehavior:
   ft.ImageFit.CONTAIN → ft.BoxFit.CONTAIN (lineas 2215, 2260). Corregido.
@@ -164,6 +164,32 @@ Task 4 — ft.Row + ft.Column + CrossAxisAlignment + MainAxisAlignment:
     — todos validos. Sin cambios.
   ft.ListView.auto_scroll= (lineas 2528, 3255): valido en ft.ListView.
   ft.Text.no_wrap= (lineas 1309, 1347, 1740, 1772): valido en ft.Text.
+  Sin correcciones requeridas en esta tarea.
+
+Task 5 — ft.NavigationRail + ft.NavigationRailDestination + ft.NavigationRailLabelType:
+  ft.NavigationRail parametros verificados: label_type=ft.NavigationRailLabelType.ALL,
+    min_width=, min_extended_width=, bgcolor=, indicator_color=, on_change=,
+    leading=, destinations= — todos validos en Flet 0.85.3 (confirmado via inspect).
+  ft.NavigationRailLabelType.ALL — valido (enum con valores NONE, SELECTED, ALL).
+  ft.NavigationRailDestination parametros: icon=, selected_icon=, label= — todos validos.
+  Sin correcciones requeridas en esta tarea.
+
+Task 6 — ft.Dropdown + ft.TextField + ft.Slider + ft.Switch:
+  ft.Dropdown (lineas 2040-2051, 2068-2081): parametros verificados via inspect:
+    label=, value=, options=, bgcolor=, border_color=, focused_border_color=,
+    color=ft.Colors.WHITE, expand= — todos validos en Flet 0.85.3.
+    ft.dropdown.Option("1") — ft.dropdown es submodulo accesible via 'import flet as ft';
+    Option existe en ft.dropdown. Patron correcto y valido. Sin cambios.
+  ft.TextField (lineas 1631-1686, 2053-2064): parametros verificados via inspect:
+    label=, value=, hint_text=, prefix_icon=ft.Icons.*, bgcolor=, border_color=,
+    focused_border_color=, color=ft.Colors.WHITE, label_style=ft.TextStyle(),
+    keyboard_type=ft.KeyboardType.NUMBER, expand= — todos validos en Flet 0.85.3.
+    ft.KeyboardType.NUMBER — enum valido. Sin cambios.
+  ft.Slider (lineas 2024-2038, 2724-2772): parametros verificados via inspect:
+    min=, max=, divisions=, value=, active_color=, thumb_color=, on_change=,
+    expand= — todos validos en Flet 0.85.3. Sin cambios.
+  ft.Switch (lineas 2777-2781): parametros verificados via inspect:
+    value=, active_color=, on_change= — todos validos en Flet 0.85.3. Sin cambios.
   Sin correcciones requeridas en esta tarea.
 
 APIS REEMPLAZADAS (historico NF_11 + NF_12)
