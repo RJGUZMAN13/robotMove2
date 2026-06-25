@@ -87,8 +87,8 @@ INCOMPATIBILIDADES ENCONTRADAS (auditadas linea por linea)
    → VisionProcessor._smooth_x y _last_zone: escalares simples. OK.
 
 10. ft.padding / ft.margin / ft.border / ft.alignment
-    → Todos los usos verificados: ft.padding.all(), ft.padding.symmetric(),
-      ft.padding.only(), ft.border.all(), ft.alignment.center —
+    → Todos los usos verificados: ft.Padding.all(), ft.Padding.symmetric(),
+      ft.Padding.only(), ft.Border.all(), ft.alignment.center —
       APIs presentes y correctas en Flet 0.85.3.
 
 11. ft.Colors / ft.Icons
@@ -1206,7 +1206,7 @@ def build_placeholder_page(title: str) -> ft.Control:
             ],
             spacing=20,
         ),
-        padding=ft.padding.all(32),
+        padding=ft.Padding.all(32),
         expand=True,
         bgcolor=BG_MAIN,
     )
@@ -1287,7 +1287,7 @@ def build_dashboard_page(state: AppState, config: ConfigManager):
                     ),
                     bgcolor=BG_PANEL,
                     border_radius=8,
-                    padding=ft.padding.all(16),
+                    padding=ft.Padding.all(16),
                     height=80,
                 ),
                 elevation=2,
@@ -1322,7 +1322,7 @@ def build_dashboard_page(state: AppState, config: ConfigManager):
                     ),
                     bgcolor=BG_PANEL,
                     border_radius=8,
-                    padding=ft.padding.all(16),
+                    padding=ft.Padding.all(16),
                     height=80,
                 ),
                 elevation=2,
@@ -1365,7 +1365,7 @@ def build_dashboard_page(state: AppState, config: ConfigManager):
                     ),
                     bgcolor=BG_PANEL,
                     border_radius=8,
-                    padding=ft.padding.all(16),
+                    padding=ft.Padding.all(16),
                     height=80,
                 ),
                 elevation=2,
@@ -1387,10 +1387,10 @@ def build_dashboard_page(state: AppState, config: ConfigManager):
             ),
             bgcolor=border_color if active else BG_CARD,
             border_radius=8,
-            padding=ft.padding.symmetric(vertical=18, horizontal=8),
+            padding=ft.Padding.symmetric(vertical=18, horizontal=8),
             alignment=ft.alignment.center,
             expand=True,
-            border=ft.border.all(2, border_color),
+            border=ft.Border.all(2, border_color),
         )
 
     # ---- Fila 1: tarjetas de estado (5 tarjetas) --------------------
@@ -1463,7 +1463,7 @@ def build_dashboard_page(state: AppState, config: ConfigManager):
                 ),
                 bgcolor=BG_PANEL,
                 border_radius=8,
-                padding=ft.padding.all(20),
+                padding=ft.Padding.all(20),
             ),
             elevation=2,
             color=BG_PANEL,
@@ -1495,7 +1495,7 @@ def build_dashboard_page(state: AppState, config: ConfigManager):
             spacing=16,
             scroll=ft.ScrollMode.AUTO,
         ),
-        padding=ft.padding.all(24),
+        padding=ft.Padding.all(24),
         expand=True,
         bgcolor=BG_MAIN,
     )
@@ -1723,7 +1723,7 @@ def build_plc_page(
             ),
             bgcolor=BG_CARD,
             border_radius=8,
-            padding=ft.padding.all(16),
+            padding=ft.Padding.all(16),
         )
 
     # ---- Helper: tarjeta de información simple ------------------------------
@@ -1750,7 +1750,7 @@ def build_plc_page(
             ),
             bgcolor=BG_CARD,
             border_radius=8,
-            padding=ft.padding.all(16),
+            padding=ft.Padding.all(16),
         )
 
     # ---- Header -------------------------------------------------------------
@@ -1787,7 +1787,7 @@ def build_plc_page(
         ),
         bgcolor=BG_PANEL,
         border_radius=10,
-        padding=ft.padding.all(20),
+        padding=ft.Padding.all(20),
     )
 
     # ---- Sección: Connection Control ----------------------------------------
@@ -1833,7 +1833,7 @@ def build_plc_page(
         ),
         bgcolor=BG_PANEL,
         border_radius=10,
-        padding=ft.padding.all(20),
+        padding=ft.Padding.all(20),
     )
 
     # ---- Sección: Connection Status -----------------------------------------
@@ -1860,7 +1860,7 @@ def build_plc_page(
         ),
         bgcolor=BG_PANEL,
         border_radius=10,
-        padding=ft.padding.all(20),
+        padding=ft.Padding.all(20),
     )
 
     # ---- Layout principal: dos columnas -------------------------------------
@@ -1893,7 +1893,7 @@ def build_plc_page(
             scroll=ft.ScrollMode.AUTO,
             expand=True,
         ),
-        padding=ft.padding.all(32),
+        padding=ft.Padding.all(32),
         expand=True,
         bgcolor=BG_MAIN,
     )
@@ -2126,7 +2126,7 @@ def build_vision_page(
         ),
         bgcolor=BG_PANEL,
         border_radius=10,
-        padding=ft.padding.all(20),
+        padding=ft.Padding.all(20),
     )
 
     # ---- Panel de info de la mano ---------------------------------------
@@ -2187,7 +2187,7 @@ def build_vision_page(
         ),
         bgcolor=BG_PANEL,
         border_radius=10,
-        padding=ft.padding.all(20),
+        padding=ft.Padding.all(20),
     )
 
     # ---- Imágenes de video (640x480 → mostrar a 320x240 para no saturar UI) ---
@@ -2236,7 +2236,7 @@ def build_vision_page(
         ),
         bgcolor=BG_PANEL,
         border_radius=10,
-        padding=ft.padding.all(16),
+        padding=ft.Padding.all(16),
     )
 
     skeleton_view = ft.Container(
@@ -2281,7 +2281,7 @@ def build_vision_page(
         ),
         bgcolor=BG_PANEL,
         border_radius=10,
-        padding=ft.padding.all(16),
+        padding=ft.Padding.all(16),
     )
 
     # ---- Layout completo ------------------------------------------------
@@ -2322,7 +2322,7 @@ def build_vision_page(
             spacing=20,
             scroll=ft.ScrollMode.AUTO,
         ),
-        padding=ft.padding.all(32),
+        padding=ft.Padding.all(32),
         expand=True,
         bgcolor=BG_MAIN,
     )
@@ -2405,7 +2405,7 @@ def build_robot_page(state: AppState):
             width=120,
             height=80,
             border_radius=8,
-            border=ft.border.all(2, colors["border"]),
+            border=ft.Border.all(2, colors["border"]),
             bgcolor=colors["dim"],
             content=ft.Column(
                 [
@@ -2429,10 +2429,10 @@ def build_robot_page(state: AppState):
     def _make_counter(cmd: str) -> ft.Container:
         colors = CMD_COLORS[cmd]
         return ft.Container(
-            padding=ft.padding.symmetric(horizontal=16, vertical=10),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=10),
             border_radius=8,
             bgcolor=BG_CARD,
-            border=ft.border.all(1, DIVIDER),
+            border=ft.Border.all(1, DIVIDER),
             content=ft.Column(
                 [
                     ft.Text(cmd, size=11, color=TEXT_MUTED, weight=ft.FontWeight.W_500),
@@ -2455,7 +2455,7 @@ def build_robot_page(state: AppState):
         ts  = entry.get("timestamp", "")
         colors = CMD_COLORS.get(cmd, {"border": TEXT_MUTED, "dim": BG_CARD})
         return ft.Container(
-            padding=ft.padding.symmetric(horizontal=12, vertical=6),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=6),
             border_radius=6,
             bgcolor=BG_CARD,
             content=ft.Row(
@@ -2515,7 +2515,7 @@ def build_robot_page(state: AppState):
     content = ft.Container(
         expand=True,
         bgcolor=BG_MAIN,
-        padding=ft.padding.all(20),
+        padding=ft.Padding.all(20),
         content=ft.Column(
             [
                 # Page title
@@ -2534,7 +2534,7 @@ def build_robot_page(state: AppState):
                 ft.Container(
                     bgcolor=BG_PANEL,
                     border_radius=10,
-                    padding=ft.padding.all(16),
+                    padding=ft.Padding.all(16),
                     content=led_row,
                 ),
 
@@ -2543,7 +2543,7 @@ def build_robot_page(state: AppState):
                 ft.Container(
                     bgcolor=BG_PANEL,
                     border_radius=10,
-                    padding=ft.padding.all(16),
+                    padding=ft.Padding.all(16),
                     content=counter_row,
                 ),
 
@@ -2552,7 +2552,7 @@ def build_robot_page(state: AppState):
                 ft.Container(
                     bgcolor=BG_PANEL,
                     border_radius=10,
-                    padding=ft.padding.all(12),
+                    padding=ft.Padding.all(12),
                     expand=True,
                     content=history_list,
                 ),
@@ -2565,6 +2565,8 @@ def build_robot_page(state: AppState):
 
     # ---- Update function -----------------------------------------------------
     def update():
+        if ref_leds["LEFT"].current is None:
+            return
         with state.lock:
             position = state.robot_position
             gripper  = state.gripper_text
@@ -2823,7 +2825,7 @@ def build_settings_page(
             content=child,
             bgcolor=BG_PANEL,
             border_radius=10,
-            padding=ft.padding.all(20),
+            padding=ft.Padding.all(20),
         )
 
     # ------------------------------------------------------------------
@@ -2947,7 +2949,7 @@ def build_settings_page(
         ),
         bgcolor=BG_CARD,
         border_radius=8,
-        padding=ft.padding.symmetric(horizontal=16, vertical=10),
+        padding=ft.Padding.symmetric(horizontal=16, vertical=10),
     )
 
     # ------------------------------------------------------------------
@@ -2995,7 +2997,7 @@ def build_settings_page(
                         ],
                         spacing=10,
                     ),
-                    padding=ft.padding.only(left=4, bottom=8),
+                    padding=ft.Padding.only(left=4, bottom=8),
                 ),
                 info_card,
                 movement_card,
@@ -3007,7 +3009,7 @@ def build_settings_page(
             scroll=ft.ScrollMode.AUTO,
         ),
         bgcolor=BG_MAIN,
-        padding=ft.padding.all(24),
+        padding=ft.Padding.all(24),
         expand=True,
     )
 
@@ -3099,9 +3101,9 @@ def build_logs_page(state: AppState, page: ft.Page) -> tuple:
                             color=color,
                         ),
                         bgcolor=f"{color}26",
-                        padding=ft.padding.symmetric(horizontal=6, vertical=2),
+                        padding=ft.Padding.symmetric(horizontal=6, vertical=2),
                         border_radius=4,
-                        border=ft.border.all(1, color),
+                        border=ft.Border.all(1, color),
                     ),
                     ft.Text(
                         entry.get("message", ""),
@@ -3204,9 +3206,9 @@ def build_logs_page(state: AppState, page: ft.Page) -> tuple:
                 color="#FFFFFF" if is_selected else color,
             ),
             bgcolor=color if is_selected else "#374151",
-            border=ft.border.all(1, color),
+            border=ft.Border.all(1, color),
             border_radius=12,
-            padding=ft.padding.symmetric(horizontal=10, vertical=4),
+            padding=ft.Padding.symmetric(horizontal=10, vertical=4),
             on_click=on_chip_click,
             ink=True,
         )
@@ -3226,7 +3228,7 @@ def build_logs_page(state: AppState, page: ft.Page) -> tuple:
         expand=True,
         auto_scroll=False,
         spacing=0,
-        padding=ft.padding.all(0),
+        padding=ft.Padding.all(0),
     )
 
     # --------------------------------------------------
@@ -3291,7 +3293,7 @@ def build_logs_page(state: AppState, page: ft.Page) -> tuple:
                     ),
                     bgcolor=BG_PANEL,
                     border_radius=8,
-                    padding=ft.padding.all(12),
+                    padding=ft.Padding.all(12),
                 ),
                 # Lista de logs
                 ft.Container(
@@ -3316,7 +3318,7 @@ def build_logs_page(state: AppState, page: ft.Page) -> tuple:
                     ),
                     bgcolor=BG_PANEL,
                     border_radius=8,
-                    padding=ft.padding.all(12),
+                    padding=ft.Padding.all(12),
                     expand=True,
                 ),
             ],
@@ -3324,7 +3326,7 @@ def build_logs_page(state: AppState, page: ft.Page) -> tuple:
             expand=True,
         ),
         bgcolor=BG_MAIN,
-        padding=ft.padding.all(24),
+        padding=ft.Padding.all(24),
         expand=True,
     )
 
@@ -3468,7 +3470,7 @@ async def main(page: ft.Page):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=2,
             ),
-            padding=ft.padding.symmetric(vertical=16),
+            padding=ft.Padding.symmetric(vertical=16),
         ),
         destinations=[
             ft.NavigationRailDestination(
