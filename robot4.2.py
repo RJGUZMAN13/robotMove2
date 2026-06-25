@@ -125,6 +125,29 @@ Task 5 — asyncio.create_task ref: sin cambios (ya correcto en v4.1).
 Task 6 — SnackBar patron: sin cambios (ya correcto en v4.1).
 Task 7 — page.window.on_event: sin cambios (ya correcto en v4.1).
 
+PLAN NF_12 TASKS 1-3 (Auditoria global Flet 0.85.3)
+────────────────────────────────────────────────────
+Task 1 — ft.Image + ft.ImageFit + ft.ClipBehavior:
+  ft.ImageFit.CONTAIN → ft.BoxFit.CONTAIN (lineas 2215, 2260). Corregido.
+  ft.ClipBehavior.ANTI_ALIAS en ft.Container (lineas 2232, 2277): VALIDO
+    en Flet 0.85.3 — enum ft.ClipBehavior existe con valores NONE,
+    HARD_EDGE, ANTI_ALIAS, ANTI_ALIAS_WITH_SAVE_LAYER. Sin cambios.
+  ft.Image parametros: ref=, src=, width=, height=, fit=, error_content=
+    todos validos. Sin cambios adicionales.
+
+Task 2 — ft.Icon() keyword name= eliminado:
+  4 instancias de ft.Icon(name=...) → ft.Icon(...) sin keyword. Corregido.
+
+Task 3 — ft.Card() + ft.Container():
+  ft.Card instancias (lineas 1261, 1308, 1353, 1426): parametros usados
+    son content= y elevation= unicamente. color= ya eliminado en commit
+    previo. Todos los parametros son validos en Flet 0.85.3. Sin cambios.
+  ft.Container instancias — parametros verificados:
+    content=, width=, height=, bgcolor=, border_radius=, border=,
+    padding=, alignment=, clip_behavior=, expand=, ref= — todos validos
+    en Flet 0.85.3. clip_behavior=ft.ClipBehavior.ANTI_ALIAS confirmado
+    valido (lineas 2232, 2277). Sin cambios requeridos.
+
 APIS REEMPLAZADAS (historico NF_11 + NF_12)
 ────────────────────────────────────────────
 1. ft.Icons.*_OUTLINED inseguros → variantes sin sufijo (v4.1).
@@ -2209,10 +2232,10 @@ def build_vision_page(
                 ft.Container(
                     content=ft.Image(
                         ref=ref_frame_img,
-                        src_base64="",
+                        src="",
                         width=VIDEO_W,
                         height=VIDEO_H,
-                        fit=ft.ImageFit.CONTAIN,
+                        fit=ft.BoxFit.CONTAIN,
                         error_content=ft.Container(
                             bgcolor=BG_CARD,
                             width=VIDEO_W,
@@ -2254,10 +2277,10 @@ def build_vision_page(
                 ft.Container(
                     content=ft.Image(
                         ref=ref_skel_img,
-                        src_base64="",
+                        src="",
                         width=VIDEO_W,
                         height=VIDEO_H,
-                        fit=ft.ImageFit.CONTAIN,
+                        fit=ft.BoxFit.CONTAIN,
                         error_content=ft.Container(
                             bgcolor=BG_CARD,
                             width=VIDEO_W,
@@ -2344,10 +2367,10 @@ def build_vision_page(
             return
 
         if ref_frame_img.current:
-            ref_frame_img.current.src_base64 = frame_b64
+            ref_frame_img.current.src = frame_b64
 
         if ref_skel_img.current:
-            ref_skel_img.current.src_base64 = skel_b64
+            ref_skel_img.current.src = skel_b64
 
         if ref_tracking_dot.current:
             ref_tracking_dot.current.bgcolor = C_OK if tracking == "ACTIVE" else C_WARN
