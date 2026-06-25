@@ -1291,7 +1291,6 @@ def build_dashboard_page(state: AppState, config: ConfigManager):
                     height=80,
                 ),
                 elevation=2,
-                color=BG_PANEL,
             ),
             expand=True,
         )
@@ -1326,7 +1325,6 @@ def build_dashboard_page(state: AppState, config: ConfigManager):
                     height=80,
                 ),
                 elevation=2,
-                color=BG_PANEL,
             ),
             expand=True,
         )
@@ -1369,7 +1367,6 @@ def build_dashboard_page(state: AppState, config: ConfigManager):
                     height=80,
                 ),
                 elevation=2,
-                color=BG_PANEL,
             ),
             expand=True,
         )
@@ -1466,7 +1463,6 @@ def build_dashboard_page(state: AppState, config: ConfigManager):
                 padding=ft.Padding.all(20),
             ),
             elevation=2,
-            color=BG_PANEL,
         ),
     )
 
