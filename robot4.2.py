@@ -88,8 +88,15 @@ INCOMPATIBILIDADES ENCONTRADAS (auditadas linea por linea)
 
 10. ft.padding / ft.margin / ft.border / ft.alignment
     → Todos los usos verificados: ft.Padding.all(), ft.Padding.symmetric(),
-      ft.Padding.only(), ft.Border.all(), ft.alignment.center —
-      APIs presentes y correctas en Flet 0.85.3.
+      ft.Padding.only(), ft.Border.all() — APIs correctas en Flet 0.85.3.
+      ft.alignment.center NO existe — corregido a ft.Alignment(x=0, y=0).
+      ft.CrossAxisAlignment — enum válido en Flet 0.85.3. Valores usados: .CENTER
+      (líneas 1198, 1283, 1434, 1484, 1715, 1764, 2176, 2219, 2231, 2264, 2276,
+      2299, 2476, 2508, 2524, 2925, 3113, 3262, 3526), .START (1884, 2315),
+      .END (1359), .STRETCH (3526). Sin cambios requeridos.
+      ft.MainAxisAlignment — enum válido en Flet 0.85.3. Valores usados: .CENTER
+      (2218, 2263, 2418, 2443), .SPACE_BETWEEN (2924), .START (3261).
+      Sin cambios requeridos. No hay imports sueltos de alignment — todo via ft.
 
 11. ft.Colors / ft.Icons
     → ft.Colors.WHITE, ft.Colors.BLACK confirmados en Flet 0.85.3. OK.
@@ -1385,7 +1392,7 @@ def build_dashboard_page(state: AppState, config: ConfigManager):
             bgcolor=border_color if active else BG_CARD,
             border_radius=8,
             padding=ft.Padding.symmetric(vertical=18, horizontal=8),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment(x=0, y=0),
             expand=True,
             border=ft.Border.all(2, border_color),
         )
@@ -3085,7 +3092,7 @@ def build_logs_page(state: AppState, page: ft.Page) -> tuple:
                     bgcolor=color,
                 ),
                 width=20,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment(x=0, y=0),
             ),
             title=ft.Row(
                 [
