@@ -192,6 +192,21 @@ Task 6 — ft.Dropdown + ft.TextField + ft.Slider + ft.Switch:
     value=, active_color=, on_change= — todos validos en Flet 0.85.3. Sin cambios.
   Sin correcciones requeridas en esta tarea.
 
+Task 7 — ft.SnackBar + ft.AlertDialog:
+  ft.SnackBar — 6 instancias auditadas (lineas 1723, 2125, 2824, 2852, 3220, 3236):
+    Patron correcto en Flet 0.85.3: page.snack_bar = ft.SnackBar(...) +
+    await page.update_async(). page.open() NO usado (introducido en versiones
+    posteriores). Sin cambios.
+    Parametros verificados: content=ft.Text(...), bgcolor=, open=True — todos
+    validos en Flet 0.85.3. Sin cambios.
+    duration=4000 (linea 3227) y duration=2000 (linea 3239) — parametro valido
+    en Flet 0.85.3 (en ms). Sin cambios.
+    Las 2 instancias sin duration= (lineas 1723, 2125, 2824, 2852) usan el
+    valor por defecto del sistema — correcto por diseno.
+  ft.AlertDialog — ausente del archivo (confirmado via busqueda completa).
+    No se usa en ningun punto del codigo. Sin accion requerida.
+  Sin correcciones requeridas en esta tarea.
+
 APIS REEMPLAZADAS (historico NF_11 + NF_12)
 ────────────────────────────────────────────
 1. ft.Icons.*_OUTLINED inseguros → variantes sin sufijo (v4.1).
