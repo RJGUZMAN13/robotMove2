@@ -1193,7 +1193,7 @@ def build_placeholder_page(title: str) -> ft.Control:
             [
                 ft.Row(
                     [
-                        ft.Icon(name=ft.Icons.CONSTRUCTION, color=ACCENT, size=28),
+                        ft.Icon(ft.Icons.CONSTRUCTION, color=ACCENT, size=28),
                         ft.Text(
                             title,
                             size=26,
@@ -1759,7 +1759,7 @@ def build_plc_page(
     # ---- Header -------------------------------------------------------------
     header_row = ft.Row(
         [
-            ft.Icon(name=ft.Icons.SETTINGS_ETHERNET, color=ACCENT, size=28),
+            ft.Icon(ft.Icons.SETTINGS_ETHERNET, color=ACCENT, size=28),
             ft.Text(
                 "PLC Connection",
                 size=24,
@@ -2412,7 +2412,7 @@ def build_robot_page(state: AppState):
             bgcolor=colors["dim"],
             content=ft.Column(
                 [
-                    ft.Icon(name=ft.Icons.CIRCLE, color=colors["border"], size=18),
+                    ft.Icon(ft.Icons.CIRCLE, color=colors["border"], size=18),
                     ft.Text(
                         ref=ref_led_texts[cmd],
                         value=cmd,
@@ -3457,11 +3457,7 @@ async def main(page: ft.Page):
         leading=ft.Container(
             content=ft.Column(
                 [
-                    ft.Icon(
-                        name=ft.Icons.PRECISION_MANUFACTURING,
-                        color=ACCENT,
-                        size=32,
-                    ),
+                    ft.Icon(ft.Icons.PRECISION_MANUFACTURING, color=ACCENT, size=32),
                     ft.Text(
                         "RJG",
                         color=ACCENT,
