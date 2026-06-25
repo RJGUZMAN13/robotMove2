@@ -125,7 +125,7 @@ Task 5 — asyncio.create_task ref: sin cambios (ya correcto en v4.1).
 Task 6 — SnackBar patron: sin cambios (ya correcto en v4.1).
 Task 7 — page.window.on_event: sin cambios (ya correcto en v4.1).
 
-PLAN NF_12 TASKS 1-6 (Auditoria global Flet 0.85.3)
+PLAN NF_12 TASKS 1-8 (Auditoria global Flet 0.85.3)
 ────────────────────────────────────────────────────
 Task 1 — ft.Image + ft.ImageFit + ft.ClipBehavior:
   ft.ImageFit.CONTAIN → ft.BoxFit.CONTAIN (lineas 2215, 2260). Corregido.
@@ -207,6 +207,57 @@ Task 7 — ft.SnackBar + ft.AlertDialog:
     No se usa en ningun punto del codigo. Sin accion requerida.
   Sin correcciones requeridas en esta tarea.
 
+Task 8 — ft.Theme + ft.ThemeMode + configuracion de ft.Page (lineas 3469-3477, 3664-3674):
+  ft.ThemeMode.DARK (linea 3473): enum valido en Flet 0.85.3. ft.ThemeMode
+    tiene valores SYSTEM, LIGHT, DARK. Sin cambios.
+  ft.Theme(color_scheme_seed="cyan") (linea 3474): parametro color_scheme_seed=
+    es el nombre correcto en Flet 0.85.3 (str de color; no seed_color= ni
+    color_scheme= con objeto ColorScheme). Valor "cyan" valido como color seed.
+    Sin cambios.
+  page.bgcolor= (linea 3475): propiedad valida de ft.Page en Flet 0.85.3.
+    Acepta strings de color hexadecimal. Sin cambios.
+  page.padding=0 (linea 3476): propiedad valida de ft.Page; entero 0 es
+    aceptado (equivale a ft.Padding.all(0)). Sin cambios.
+  page.spacing=0 (linea 3477): propiedad valida de ft.Page en Flet 0.85.3
+    (Page actua como layout column para sus controles). Sin cambios.
+  page.window.width/height (lineas 3469-3470): ft.Page.window es objeto
+    Window con propiedades width, height, min_width, min_height — todos
+    validos en Flet 0.85.3. Sin cambios.
+  page.window.min_width/min_height (lineas 3471-3472): propiedades Window
+    validas en Flet 0.85.3. Sin cambios.
+  page.window.prevent_close= (lineas 3664, 3674): propiedad Window valida
+    en Flet 0.85.3. Sin cambios.
+  page.window.on_event= (linea 3673): setter valido para registrar handler
+    de eventos de ventana en Flet 0.85.3. Sin cambios.
+  page.window.destroy() (linea 3666): metodo Window valido en Flet 0.85.3.
+    Sin cambios.
+  Sin correcciones requeridas en esta tarea.
+
+Task 11 — imports + enums menores + buttons + ft.app:
+  Imports (linea 314): 'import flet as ft' es suficiente — todos los submodulos
+    (ft.dropdown, ft.Icons, ft.Colors, etc.) son accesibles via ft.*. Sin cambios.
+  ft.TextOverflow.ELLIPSIS (linea 3224): enum valido. TextOverflow tiene valores
+    CLIP, ELLIPSIS, FADE, VISIBLE en Flet 0.85.3. Sin cambios.
+  ft.ScrollMode.AUTO (lineas 1607, 2004, 2434, 2673, 3120): enum valido.
+    ScrollMode tiene ADAPTIVE, ALWAYS, AUTO, HIDDEN. Sin cambios.
+  ft.KeyboardType.NUMBER (lineas 1713, 1724, 1735, 1746, 2123): enum valido.
+    KeyboardType tiene NUMBER entre otros. Sin cambios.
+  ft.ListTile (linea 3194) con leading=, title=, subtitle=, dense=True,
+    min_leading_width=20: todos parametros validos en Flet 0.85.3. Sin cambios.
+  ft.ListView con spacing=, padding=, auto_scroll= (lineas 2608, 3337):
+    todos parametros validos en Flet 0.85.3. Sin cambios.
+  ft.ButtonStyle(shape=, side=) (lineas 1922, 1931, 2229, 3081, 3363):
+    parametros validos. Constructores verificados:
+    ft.RoundedRectangleBorder(radius=6) — valido.
+    ft.BorderSide(width, color) — valido con args posicionales.
+    Sin cambios.
+  ft.app(target=main) (linea 3709): DEPRECADO desde Flet 0.80.0.
+    → CORREGIDO a ft.run(main) — API actual correcta en Flet 0.85.x.
+  ft.FontWeight.BOLD, .W_500, .W_600: enums validos. FontWeight tiene
+    BOLD, NORMAL, W_100 a W_900. Sin cambios adicionales.
+  ft.TextAlign.CENTER: enum valido. TextAlign tiene CENTER, LEFT, RIGHT,
+    JUSTIFY, START, END. Sin cambios.
+
 APIS REEMPLAZADAS (historico NF_11 + NF_12)
 ────────────────────────────────────────────
 1. ft.Icons.*_OUTLINED inseguros → variantes sin sufijo (v4.1).
@@ -231,6 +282,7 @@ MEJORAS APLICADAS EN v4.2
 3. Validacion final: simulacion mental completa de arranque → conexion PLC →
    apertura camara → tracking → cierre sin excepciones detectadas.
 4. Compatibilidad Flet 0.85.3 confirmada para todas las APIs utilizadas.
+   ft.app(target=main) reemplazado por ft.run(main) (deprecated desde 0.80.0).
 5. Manejo robusto de excepciones: ninguna excepcion cierra la app completa.
 6. Compatibilidad Python 3.11 verificada — typing moderno sin __future__.
 
@@ -3680,4 +3732,4 @@ async def main(page: ft.Page):
 # =====================================================
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    ft.run(main)
